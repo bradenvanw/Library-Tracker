@@ -208,8 +208,11 @@
         function filterLocalCatalogCache() {
             const query = searchQueryInput.value.toLowerCase().trim();
             searchResultsList.innerHTML = "";
-
+        
+            // If there is no search query, show ALL books in your collection by default
             const filtered = globalCatalogCache.filter(b => {
+                if (query === "") return true; // <-- This ensures everything shows on initial load!
+                
                 return (
                     (b.title && b.title.toLowerCase().includes(query)) ||
                     (b.authors && b.authors.toLowerCase().includes(query)) ||
@@ -218,24 +221,23 @@
                     (b.isbn && b.isbn.includes(query))
                 );
             });
-
+        
             if (filtered.length === 0) {
                 searchResultsList.innerHTML = `<div class="bg-white rounded-xl p-6 text-center text-xs text-gray-400 border border-gray-100">No active book entries match your filter.</div>`;
                 return;
             }
-
+        
             filtered.forEach(book => {
                 const isCheckedOut = book.status === "Checked Out";
                 const card = document.createElement("div");
                 card.className = "bg-white p-4 rounded-xl border border-gray-100 shadow-2xs flex gap-3 items-start text-left cursor-pointer hover:border-indigo-200 transition-colors";
                 
-                // Clicking an entry pulls it up inside the standard scanning/edit panel automatically!
                 card.onclick = () => {
                     switchAppMode('scan');
                     isbnInput.value = book.isbn;
                     checkExistingAndFetchMetadata(book.isbn);
                 };
-
+        
                 card.innerHTML = `
                     <div class="w-12 h-18 bg-gray-50 border rounded-md overflow-hidden flex-shrink-0">
                         <img src="${book.thumbnail || 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=100'}" class="w-full h-full object-cover">
@@ -254,7 +256,6 @@
                 searchResultsList.appendChild(card);
             });
         }
-
         // --- MODIFIED SUBMIT FUNCTION TO APPEND DYNAMIC RE-SYNC ---
         // (Ensures search index maps accurately instantly after you edit a row inside the app)
         async function submitDataToGoogleSheets() {

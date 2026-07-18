@@ -3,54 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal Library Tracker</title>
-    <!-- Tailwind CSS for Beautiful Styling -->
+    <title>Librify - Book Scanner & Collection Tracker</title>
+    <!-- Tailwind CSS CDN for presentation styling -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <!-- Html5-Qrcode Library for Camera Scanning -->
-    <script src="https://unpkg.com/html5-qrcode"></script>
-</head>
-<body class="bg-gray-50 min-h-screen text-gray-800 antialiased pb-12">
+    <!-- html5-qrcode production library dependency -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        /* Complete container framework fix for vertical mobile viewports */
+        #interactive-reader {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+            border-radius: 0.75rem;
+            position: relative;
+            background: #000000;
+        }
 
-    <!-- Container Wrap -->
-    <div class="max-w-md mx-auto px-4 pt-6 space-y-6">
-        
-        <!-- Header Section -->
-        <header class="text-center py-4">
-            <h1 class="text-2xl font-black text-gray-900 tracking-tight flex items-center justify-center gap-2">
-                📚 Library Cataloger
-            </h1>
-            <p class="text-xs text-gray-500 font-medium mt-1">Scan barcodes or type ISBNs to sync with Google Sheets</p>
+        /* Forces inner video stream elements to conform to boundaries */
+        #interactive-reader video {
+            width: 100% !important;
+            height: auto !important;
+            max-height: 40vh !important;
+            object-fit: cover !important;
+            border-radius: 0.5rem;
+        }
+
+        /* Centers and locks down the scanning placement box element layers */
+        #interactive-reader__scan_region {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            overflow: hidden !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen pb-12">
+
+    <div class="max-w-xl mx-auto p-4 sm:p-6">
+        <!-- Header -->
+        <header class="text-center my-6">
+            <h1 class="text-3xl font-extrabold text-indigo-600 tracking-tight">Librify</h1>
+            <p class="text-sm text-gray-500 mt-1">Scan a book's barcode or type an ISBN to manage your collection</p>
         </header>
 
-        <!-- Search / Scan Controls Panel -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-            <div class="flex gap-2">
-                <input type="text" id="isbn-input" placeholder="Type ISBN manually + hit Enter..." 
-                    class="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" />
-                
-                <button id="toggle-scan-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-3 rounded-xl text-sm transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-2">
-                    📷 Open Scanner
+        <!-- Main Dashboard Actions -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+            
+            <!-- Controls Form -->
+            <div class="flex flex-col sm:flex-row gap-3">
+                <div class="relative flex-grow">
+                    <input type="text" id="isbn-input" placeholder="Enter 10 or 13-digit ISBN..." 
+                        class="w-full pl-4 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition-all">
+                </div>
+                <button id="toggle-scan-btn" onclick="toggleScanner()" 
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-3 rounded-xl text-sm transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-2">
+                    <span>Open Scanner</span>
                 </button>
             </div>
+
+            <!-- Interactive Camera Scanner Window Section -->
+            <div id="scanner-section" class="hidden border-2 border-dashed border-gray-200 rounded-2xl p-3 bg-gray-50 overflow-hidden transition-all duration-300">
+                <div id="interactive-reader" class="w-full mx-auto"></div>
+                <p class="text-center text-xs text-gray-400 mt-2">Center the book's linear barcode inside the highlighted rectangle box.</p>
+            </div>
+
+            <!-- Feedback App Status Log Messages -->
+            <div id="status-log" class="hidden text-sm p-3 rounded-xl border font-medium text-center"></div>
         </div>
 
-        <!-- Camera Scanner Section (Hidden by Default) -->
-        <div id="scanner-section" class="hidden bg-black rounded-2xl overflow-hidden shadow-inner relative border border-gray-800">
-            <div id="interactive-reader" class="w-full"></div>
+        <!-- Render Target Output Area (Combines Book Details & Meta Tracking Inputs) -->
+        <main id="book-result" class="mt-6 space-y-6"></main>
+
+        <!-- Session Activity History Feed Container -->
+        <div id="history-section" class="mt-8 hidden">
+            <div class="border-b border-gray-200 pb-2 mb-3">
+                <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Session Activity</h2>
+            </div>
+            <div id="session-log" class="space-y-3"></div>
         </div>
-
-        <!-- Dynamic Feedback Logging Toast Box -->
-        <div id="status-log" class="hidden"></div>
-
-        <!-- Dynamic Target Area: Scanned Book and Forms Load Here -->
-        <div id="book-result" class="space-y-4"></div>
-
-        <!-- Recent Session Sync History Shell -->
-        <div id="history-section" class="hidden space-y-2.5">
-            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">Recently Synced This Session</h3>
-            <div id="session-log" class="space-y-2"></div>
-        </div>
-
     </div>
 
     <!-- Main Core Business Script Execution Block -->

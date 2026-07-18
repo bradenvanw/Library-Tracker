@@ -334,10 +334,13 @@
         // Submit Records to Sheet
         async function submitDataToGoogleSheets() { 
             if (!currentScannedBook) return; 
+            
+            // Package up the form values explicitly
             currentScannedBook.uniqueId = selectedUniqueId; 
             currentScannedBook.location = document.getElementById("input-location").value; 
             currentScannedBook.status = document.getElementById("input-status").value; 
             currentScannedBook.borrower = document.getElementById("input-borrower").value; 
+            
             const selectedChips = Array.from(document.querySelectorAll(".tag-chip.bg-indigo-600")); 
             currentScannedBook.tags = selectedChips.map(c => c.getAttribute("data-val")).join(", "); 
             
@@ -351,9 +354,17 @@
                     headers: { "Content-Type": "text/plain;charset=utf-8" }, 
                     body: JSON.stringify(savedBookInstance) 
                 }); 
+                const resData = await response.json();
+                
+                // Use the returned server ID if we generated a new instance variant
+                if (resData.uniqueId) {
+                    savedBookInstance.uniqueId = resData.uniqueId;
+                }
+        
                 showStatus(`Successfully synced configuration: "${savedBookInstance.title}"`, "success"); 
                 appendSessionHistoryLog(savedBookInstance); 
-                fetchAllBooksFromGoogleSheet(); 
+                fetchAllBooksFromGoogleSheet(); // Refresh local cache automatically
+                
                 bookResult.innerHTML = `<div class="bg-white rounded-2xl border border-dashed border-gray-200 p-8 text-center text-gray-400 text-sm">🎉 Profile Synced!</div>`; 
                 currentScannedBook = null; 
             } catch (err) { 

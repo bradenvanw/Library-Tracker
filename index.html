@@ -362,26 +362,34 @@
             } 
         }
 
-        // Safe Server-Side Metadata Lookup via Apps Script
         async function checkExistingAndFetchMetadata(isbn) { 
             clearStatus(); 
-            bookResult.innerHTML = `<div class="flex items-center justify-center py-12"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div><span class="ml-3 text-sm text-gray-500">Syncing profiles...</span></div>`; 
+            bookResult.innerHTML = `<div class="flex items-center justify-center py-12"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div><span class="ml-3 text-sm text-gray-500">Searching catalog...</span></div>`; 
             const cleanIsbn = isbn.trim().replace(/[-\s]/g, ""); 
-
+        
             try { 
+                // 1. Check your Google Sheet first for duplicate copies
                 const lookupResponse = await fetch(`${GOOGLE_SCRIPT_URL}?isbn=${cleanIsbn}`); 
-                if (!lookupResponse.ok) throw new Error("Backend server error."); 
+                if (lookupResponse.ok) {
+                    const lookupData = await lookupResponse.json(); 
+                    activeCopiesData = lookupData.copies || []; 
+                }
+        
+                // 2. Direct browser fetch to Open Library (the old way that worked!)
+                const url = `https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&jscmd=data&format=json`;
+                const olResponse = await fetch(url);
+                if (!olResponse.ok) throw new Error("Open Library connection failure.");
                 
-                const lookupData = await lookupResponse.json(); 
-                activeCopiesData = lookupData.copies || []; 
-                const vol = lookupData.metadata; 
-
+                const olData = await olResponse.json();
+                const vol = olData[`ISBN:${cleanIsbn}`]; 
+        
                 if (!vol) { 
                     showStatus("No matching data found for this ISBN on Open Library.", "error"); 
                     bookResult.innerHTML = ""; 
                     return; 
                 } 
-
+        
+                // Map data fields to our layout profile
                 currentScannedBook = { 
                     isbn: cleanIsbn, 
                     title: vol.title || "Unknown Title", 
@@ -392,7 +400,7 @@
                     genre: vol.subjects ? vol.subjects[0].name : "General Reading", 
                     pages: vol.number_of_pages ? `${vol.number_of_pages} pgs` : "N/A" 
                 }; 
-
+        
                 showStatus("Book profile match successfully isolated!", "success"); 
                 renderIntegratedLayout(); 
             } catch (err) { 
@@ -400,7 +408,7 @@
                 bookResult.innerHTML = ""; 
             } 
         }
-
+        
         isbnInput.addEventListener("keyup", function(e) { if (e.key === "Enter") { const q = isbnInput.value.trim().replace(/[-\s]/g, ""); if (q) checkExistingAndFetchMetadata(q); } });
         function toggleAppSettingsPanel(id) { const targets = ['location-manager-panel', 'tag-manager-panel']; targets.forEach(t => { const el = document.getElementById(t); if (t === id) el.classList.toggle("hidden"); else el.classList.add("hidden"); }); }
         function renderLocationLibrarySettings() { locationLibraryList.innerHTML = ""; userLocations.forEach((l, i) => { const s = document.createElement("span"); s.className = "inline-flex items-center gap-1 bg-white border text-gray-700 text-xs px-2 py-1 rounded-md shadow-xs font-medium"; s.innerHTML = `<span>📍 ${l}</span><button onclick="deleteCustomUserLocation(${i})" class="text-gray-400 hover:text-red-500 font-bold ml-1 cursor-pointer">&times;</button>`; locationLibraryList.appendChild(s); }); localStorage.setItem("librify_locations", JSON.stringify(userLocations)); }

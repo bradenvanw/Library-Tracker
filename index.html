@@ -75,21 +75,37 @@
             <!-- Status Log Messages -->
             <div id="status-log" class="hidden text-sm p-3 rounded-xl border font-medium text-center"></div>
 
-            <!-- NEW: Dynamic Tag Settings Panel Toggle Button -->
-            <div class="pt-2 border-t border-gray-100 flex justify-end">
-                <button onclick="toggleTagManagerPanel()" class="text-xs font-semibold text-indigo-600 hover:text-indigo-700 cursor-pointer flex items-center gap-1">
-                    ⚙️ Manage App Tags
+            <!-- Dynamic Settings Toggle Panel Navigation -->
+            <div class="pt-2 border-t border-gray-100 flex justify-end gap-4">
+                <button onclick="toggleAppSettingsPanel('location-manager-panel')" class="text-xs font-semibold text-indigo-600 hover:text-indigo-700 cursor-pointer flex items-center gap-1">
+                    📍 Manage Locations
+                </button>
+                <button onclick="toggleAppSettingsPanel('tag-manager-panel')" class="text-xs font-semibold text-indigo-600 hover:text-indigo-700 cursor-pointer flex items-center gap-1">
+                    🏷️ Manage Tags
                 </button>
             </div>
 
-            <!-- NEW: Inline Tag Creator and Manager Panel Layout -->
+            <!-- NEW: Inline Location Settings Control Module Panel -->
+            <div id="location-manager-panel" class="hidden bg-gray-50 rounded-xl p-4 border border-gray-200/70 space-y-3">
+                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Custom Library Locations</h3>
+                <div class="flex gap-2">
+                    <input type="text" id="new-location-input" placeholder="e.g., Living Room Main, Office..." 
+                        class="flex-grow bg-white border border-gray-200 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <button onclick="addNewCustomUserLocation()" class="bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer hover:bg-indigo-700">
+                        Add
+                    </button>
+                </div>
+                <div id="location-library-list" class="flex flex-wrap gap-1.5 pt-1"></div>
+            </div>
+
+            <!-- Inline Tag Creator and Manager Panel Layout -->
             <div id="tag-manager-panel" class="hidden bg-gray-50 rounded-xl p-4 border border-gray-200/70 space-y-3">
                 <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Custom Tag Library Settings</h3>
                 <div class="flex gap-2">
                     <input type="text" id="new-tag-input" placeholder="e.g., Sci-Fi, Signed, Loaned..." 
                         class="flex-grow bg-white border border-gray-200 rounded-lg p-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <button onclick="addNewCustomUserTag()" class="bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer hover:bg-indigo-700">
-                        Add Tag
+                        Add
                     </button>
                 </div>
                 <div id="tag-library-list" class="flex flex-wrap gap-1.5 pt-1"></div>
@@ -122,9 +138,14 @@
         const isbnInput = document.getElementById("isbn-input");
         const historySection = document.getElementById("history-section");
         const sessionLog = document.getElementById("session-log");
+        
         const tagManagerPanel = document.getElementById("tag-manager-panel");
         const newTagInput = document.getElementById("new-tag-input");
         const tagLibraryList = document.getElementById("tag-library-list");
+
+        const locationManagerPanel = document.getElementById("location-manager-panel");
+        const newLocationInput = document.getElementById("new-location-input");
+        const locationLibraryList = document.getElementById("location-library-list");
 
         // Application State Managers
         let html5QrcodeScanner = null;
@@ -132,11 +153,13 @@
         let activeCopiesData = [];
         let selectedUniqueId = "";
         
-        // NEW: Tag Storage System with Default Fallbacks
+        // Dynamic System Preferences with Fallback Defaults
         let userTags = JSON.parse(localStorage.getItem("librify_tags")) || ["To Read", "Favorite", "Hardcover", "Borrowed"];
+        let userLocations = JSON.parse(localStorage.getItem("librify_locations")) || ["Living Room Main", "Office Bookshelf", "Bedroom Table", "Unassigned / Pile"];
 
-        // Initialization: Run library UI updates immediately
+        // Initialization: Run dynamic structural rendering routines instantly
         renderTagLibrarySettings();
+        renderLocationLibrarySettings();
 
         // Manual search input event trigger
         isbnInput.addEventListener("keyup", function(event) {
@@ -148,12 +171,78 @@
             }
         });
 
-        // NEW: Toggle visibility of the setup control tray
-        function toggleTagManagerPanel() {
-            tagManagerPanel.classList.toggle("hidden");
+        // Toggle app preferences manager cards safely
+        function toggleAppSettingsPanel(targetPanelId) {
+            const targets = ['location-manager-panel', 'tag-manager-panel'];
+            targets.forEach(id => {
+                const el = document.getElementById(id);
+                if (id === targetPanelId) {
+                    el.classList.toggle("hidden");
+                } else {
+                    el.classList.add("hidden");
+                }
+            });
         }
 
-        // NEW: Render the management library UI inside the setup card
+        // --- LOCATION MANAGEMENT ENGINE FUNCTIONS ---
+        function renderLocationLibrarySettings() {
+            locationLibraryList.innerHTML = "";
+            userLocations.forEach((loc, idx) => {
+                const span = document.createElement("span");
+                span.className = "inline-flex items-center gap-1 bg-white border border-gray-200 text-gray-700 text-xs px-2 py-1 rounded-md shadow-xs font-medium";
+                span.innerHTML = `
+                    <span>📍 ${loc}</span>
+                    <button onclick="deleteCustomUserLocation(${idx})" class="text-gray-400 hover:text-red-500 font-bold ml-1 cursor-pointer" title="Delete Location">&times;</button>
+                `;
+                locationLibraryList.appendChild(span);
+            });
+            localStorage.setItem("librify_locations", JSON.stringify(userLocations));
+        }
+
+        function addNewCustomUserLocation() {
+            const rawVal = newLocationInput.value.trim();
+            if (rawVal && !userLocations.includes(rawVal)) {
+                userLocations.push(rawVal);
+                newLocationInput.value = "";
+                renderLocationLibrarySettings();
+                
+                if (currentScannedBook) {
+                    refreshActiveFormLocationDropdown();
+                }
+            }
+        }
+
+        function deleteCustomUserLocation(index) {
+            userLocations.splice(index, 1);
+            renderLocationLibrarySettings();
+            
+            if (currentScannedBook) {
+                refreshActiveFormLocationDropdown();
+            }
+        }
+
+        function refreshActiveFormLocationDropdown() {
+            const dropdown = document.getElementById("input-location");
+            if (!dropdown) return;
+            
+            const previousSelectedValue = dropdown.value;
+            dropdown.innerHTML = "";
+            
+            userLocations.forEach(loc => {
+                const opt = document.createElement("option");
+                opt.value = loc;
+                opt.innerText = loc;
+                dropdown.appendChild(opt);
+            });
+            
+            // Re-select their previous option choice if it still exists after the update
+            if (userLocations.includes(previousSelectedValue)) {
+                dropdown.value = previousSelectedValue;
+            }
+        }
+
+
+        // --- TAG MANAGEMENT ENGINE FUNCTIONS ---
         function renderTagLibrarySettings() {
             tagLibraryList.innerHTML = "";
             userTags.forEach((tag, idx) => {
@@ -168,7 +257,6 @@
             localStorage.setItem("librify_tags", JSON.stringify(userTags));
         }
 
-        // NEW: Push custom items into running engine memory arrays
         function addNewCustomUserTag() {
             const rawVal = newTagInput.value.trim();
             if (rawVal && !userTags.includes(rawVal)) {
@@ -176,30 +264,25 @@
                 newTagInput.value = "";
                 renderTagLibrarySettings();
                 
-                // If a book is currently open, dynamically update its tag choice list instantly
                 if (currentScannedBook) {
                     refreshActiveFormTagChips();
                 }
             }
         }
 
-        // NEW: Remove items from runtime storage
         function deleteCustomUserTag(index) {
             userTags.splice(index, 1);
             renderTagLibrarySettings();
             
-            // Re-render open form components instantly to drop removed tags
             if (currentScannedBook) {
                 refreshActiveFormTagChips();
             }
         }
 
-        // NEW: Re-draw current chip buttons safely without forcing layout resets on text rows
         function refreshActiveFormTagChips() {
             const container = document.getElementById("tag-chips-container");
             if (!container) return;
             
-            // Cache any tags currently selected so they don't reset when editing choices
             const activeChips = Array.from(document.querySelectorAll(".tag-chip.bg-indigo-600"));
             const selectedVals = activeChips.map(c => c.getAttribute("data-val"));
             
@@ -223,6 +306,8 @@
             });
         }
 
+
+        // --- SCANNER AND API INFRASTRUCTURE ---
         function showStatus(message, type = "info") {
             statusLog.className = "text-sm p-3 rounded-xl border font-medium text-center block";
             if (type === "error") {
@@ -313,7 +398,6 @@
 
         function onScanSuccess(decodedText) {
             if (scannerSection.classList.contains("max-h-0")) return;
-            
             isbnInput.value = decodedText;
             
             scannerSection.classList.remove("max-h-[500px]", "opacity-100", "border-2", "border-dashed");
@@ -327,7 +411,6 @@
                         checkExistingAndFetchMetadata(decodedText);
                     })
                     .catch(err => {
-                        console.warn("Forcing scanner cleanup after non-critical stop error:", err);
                         html5QrcodeScanner = null;
                         renderScanNextButtonState();
                         checkExistingAndFetchMetadata(decodedText);
@@ -376,7 +459,6 @@
                     <span class="ml-3 text-sm text-gray-500">Syncing collection profiles...</span>
                 </div>
             `;
-            
             const cleanIsbn = isbn.trim().replace(/[-\s]/g, "");
             
             try {
@@ -464,17 +546,12 @@
 
                     <div class="space-y-1">
                         <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider">Storage Shelf Location Slot</label>
-                        <select id="input-location" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                            <option value="Living Room Main">Living Room Main</option>
-                            <option value="Office Bookshelf">Office Bookshelf</option>
-                            <option value="Bedroom Table">Bedroom Table</option>
-                            <option value="Unassigned / Pile">Unassigned / Pile</option>
-                        </select>
+                        <!-- MODIFIED: Locations select element is populated dynamically via engine runtime routines -->
+                        <select id="input-location" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"></select>
                     </div>
 
                     <div class="space-y-1">
                         <label class="block text-xs font-bold text-gray-600 uppercase tracking-wider">Collection Tracking Badges</label>
-                        <!-- MODIFIED: Container is now loaded dynamically via runtime functions -->
                         <div id="tag-chips-container" class="flex flex-wrap gap-2 pt-1"></div>
                     </div>
 
@@ -488,7 +565,6 @@
             setupFormInteractions();
         }
 
-        // NEW: Abstracted toggle function to handle changing active tag visual states
         function toggleChipState(chip) {
             chip.classList.toggle("bg-gray-50");
             chip.classList.toggle("text-gray-600");
@@ -520,7 +596,8 @@
                 }
             });
 
-            // Populate the active input form's tag layout option group
+            // Populate active layout arrays dynamically
+            refreshActiveFormLocationDropdown();
             refreshActiveFormTagChips();
 
             if (activeCopiesData.length > 0) {
@@ -564,7 +641,13 @@
                 }
             });
 
-            document.getElementById("input-location").value = copy.location || "Living Room Main";
+            // Verify if the old entry row maps to an existing library item index option safely
+            if (userLocations.includes(copy.location)) {
+                document.getElementById("input-location").value = copy.location;
+            } else if (userLocations.length > 0) {
+                document.getElementById("input-location").value = userLocations[0];
+            }
+            
             document.getElementById("input-status").value = copy.status || "Available";
             
             const borrowerContainer = document.getElementById("borrower-input-container");
@@ -603,7 +686,9 @@
                 }
             });
 
-            document.getElementById("input-location").value = "Living Room Main";
+            if (userLocations.length > 0) {
+                document.getElementById("input-location").value = userLocations[0];
+            }
             document.getElementById("input-status").value = "Available";
             document.getElementById("borrower-input-container").classList.add("hidden");
             document.getElementById("input-borrower").value = "";

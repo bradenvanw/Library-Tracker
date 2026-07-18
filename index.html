@@ -202,55 +202,64 @@
         }
 
         function onScanSuccess(decodedText) {
+            // If we're already viewing a book or loading one, ignore accidental double-scans
+            if (scannerSection.classList.contains("hidden")) return;
+            
             isbnInput.value = decodedText;
             
-            // 1. Immediately update the button state so the user knows it worked
-            renderScanNextButtonState();
-            
-            // 2. Safely stop the camera. If it fails, we still move forward.
+            // 1. Instantly pause the scanner loop so it stops tracking video frames
             if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
-                html5QrcodeScanner.stop()
-                    .then(() => { console.log("Camera stopped cleanly."); })
-                    .catch(err => { console.warn("Camera stop warning:", err); })
-                    .finally(() => {
-                        // 3. ONLY query the databases AFTER the camera hook is completely released
-                        checkExistingAndFetchMetadata(decodedText);
-                    });
-            } else {
-                checkExistingAndFetchMetadata(decodedText);
+                html5QrcodeScanner.pause();
             }
-        }
-        
-        function renderScanNextButtonState() {
-            // Hide the scanner container frame immediately
+            
+            // 2. Hide the video preview area visually, but KEEP the stream alive underneath
             scannerSection.classList.add("hidden");
             
-            // Swap the top container to display the green action trigger button
+            // 3. Render our green 'Scan Next' action button
+            renderScanNextButtonState();
+            
+            // 4. Pull your Google Sheet & OpenLibrary metadata records
+            checkExistingAndFetchMetadata(decodedText);
+        }
+        
+      function renderScanNextButtonState() {
             actionBtnContainer.innerHTML = `
                 <button id="scan-next-btn" onclick="prepareNextScanSession()" 
-                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap animate-pulse">
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-3 rounded-xl text-sm transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap">
                     ⚡ <span>Scan Next Book</span>
                 </button>
             `;
         }
-        
+
         function prepareNextScanSession() {
-            // Flush display state profiles
+            // 1. Flush display state text values
             bookResult.innerHTML = "";
             currentScannedBook = null;
             isbnInput.value = "";
             clearStatus();
             
-            // Put back the original toggle button architecture
+            // 2. Swap back to the default header button templates
             actionBtnContainer.innerHTML = `
                 <button id="toggle-scan-btn" onclick="toggleScanner()" 
                     class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-3 rounded-xl text-sm transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap">
-                    <span>Open Scanner</span>
+                    <span>Close Scanner</span>
                 </button>
             `;
             
-            // Now trigger the normal toggle function to open the container and fire the lens up
-            toggleScanner();
+            // 3. Make the scanner container frame visible again
+            scannerSection.classList.remove("hidden");
+            
+            // 4. Safely tell the active camera to start processing video frames again
+            if (html5QrcodeScanner) {
+                try {
+                    html5QrcodeScanner.resume();
+                } catch (err) {
+                    console.warn("Scanner wasn't paused, attempting restart sequence:", err);
+                    startScanning();
+                }
+            } else {
+                startScanning();
+            }
         }
 
         async function checkExistingAndFetchMetadata(isbn) {

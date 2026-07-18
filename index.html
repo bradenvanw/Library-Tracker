@@ -529,7 +529,7 @@
             });
         }
 
-        // Processing Pipeline Sync Upload Sequences
+        // Optimized Processing Pipeline Sync Upload Sequence
         async function submitDataToGoogleSheets() {
             if (!currentScannedBook) return;
         
@@ -542,7 +542,7 @@
             const selectedChips = Array.from(document.querySelectorAll(".tag-chip.bg-indigo-600"));
             currentScannedBook.tags = selectedChips.map(c => c.getAttribute("data-val")).join(", ");
         
-            // Save a reference copy before clearing our working state object variables
+            // Save a reference copy before clearing working variables
             const savedBookInstance = { ...currentScannedBook };
             
             // Clean up old active display elements to show progress loader
@@ -555,19 +555,20 @@
             showStatus("Syncing row transaction references with Google Sheet engine...", "info");
         
             try {
-                // Post network payload transmission
-                await fetch(GOOGLE_SCRIPT_URL, {
+                // Post network payload transmission (CORS safely managed by allowing default redirect handling)
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
                     method: "POST",
-                    mode: "no-cors", 
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "text/plain;charset=utf-8" }, // Prevents CORS preflight checks while delivering data string
                     body: JSON.stringify(savedBookInstance)
                 });
         
-                // UI updates inside the successful try branch block execution path
+                // Optional: If your Google App Script returns explicit JSON confirmation statuses
+                // const resultData = await response.json(); 
+        
+                // UI updates inside the successful execution path
                 showStatus(`Successfully synced configuration: "${savedBookInstance.title}"`, "success");
                 appendSessionHistoryLog(savedBookInstance);
                 
-                // Keep the "Scan Next Book" action button highlighted up top so they can snap their next barcode
                 bookResult.innerHTML = `
                     <div class="bg-white rounded-2xl border border-dashed border-gray-200 p-8 text-center text-gray-400 text-sm">
                         🎉 Profile Synced! Tap <strong class="text-emerald-600">Scan Next Book</strong> up top to continue mapping your library collection.
@@ -577,7 +578,7 @@
                 
             } catch (err) {
                 showStatus(`Spreadsheet sync transmission dropped: ${err.message}`, "error");
-                // Re-render working assets fields on true network configuration crashes
+                // Re-render working assets fields on network configuration crashes so data isn't lost
                 renderIntegratedLayout();
             }
         }

@@ -196,10 +196,29 @@
             toggleScanBtn.className = "bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-3 rounded-xl text-sm transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-2";
         }
 
-        function onScanSuccess(decodedText) {
-            isbnInput.value = decodedText;
-            stopScanning();
-            checkExistingAndFetchMetadata(decodedText);
+        function onScanSuccess(decodedText, decodedResult) {
+            // Pause the camera stream immediately so it doesn't double-scan
+            if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+                html5QrcodeScanner.pause(true); 
+            }
+            
+            console.log("Barcode detected:", decodedText);
+            showStatus("Book detected! Fetching details...", "info");
+        
+            // CRITICAL FIX: Ensure currentScannedBook is initialized as a fresh object
+            currentScannedBook = {
+                barcode: decodedText,
+                title: "Loading...", // Will be overwritten by your lookup function
+                timestamp: new Date().toISOString()
+            };
+        
+            // Call your existing function to fetch details from Google/OpenLibrary
+            if (typeof fetchBookDetails === "function") {
+                fetchBookDetails(decodedText);
+            } else {
+                // Fallback if you don't have a lookup function: unlock form manually
+                document.getElementById("book-title-display").innerText = "Barcode: " + decodedText;
+            }
         }
 
         // Integrated Query Orchestrator & Multi-Copy Sync Parser
@@ -453,44 +472,65 @@
                 chip.className = "tag-chip bg-gray-50 text-gray-600 border border-gray-200/80 px-3 py-1.5 text-xs font-medium rounded-xl transition-all cursor-pointer";
             });
         }
+       
         // Processing Pipeline Sync Upload Sequences
-        async function submitDataToGoogleSheets() {
-            if (!currentScannedBook) return;
+       async function submitDataToGoogleSheets() {
+        // If this is null, it means the second scan didn't register or assign properly
+            if (!currentScannedBook) {
+                showStatus("⚠️ No active book data found to send. Please scan a book first.", "error");
+                return;
+            }
         
-            // Collect active form element variations values settings blocks
-            currentScannedBook.uniqueId = selectedUniqueId;
-            currentScannedBook.location = document.getElementById("input-location").value;
-            currentScannedBook.status = document.getElementById("input-status").value;
-            currentScannedBook.borrower = document.getElementById("input-borrower").value;
+            // Build the payload safely
+            currentScannedBook.uniqueId = selectedUniqueId || "";
+            currentScannedBook.location = document.getElementById("input-location")?.value || "";
+            currentScannedBook.status = document.getElementById("input-status")?.value || "";
+            currentScannedBook.borrower = document.getElementById("input-borrower")?.value || "";
         
             const selectedChips = Array.from(document.querySelectorAll(".tag-chip.bg-indigo-600"));
             currentScannedBook.tags = selectedChips.map(c => c.getAttribute("data-val")).join(", ");
         
-            bookResult.innerHTML = "";
-            showStatus("Syncing row transaction references with Google Sheet engine...", "info");
+            showStatus("Sending data to Google Sheets...", "info");
         
             try {
-                await fetch(GOOGLE_SCRIPT_URL, {
+                // Added a timestamp cache-buster to the URL to force Google to process every single click uniquely
+                const cacheBusterUrl = `${GOOGLE_SCRIPT_URL}?cb=${Date.now()}`;
+        
+                await fetch(cacheBusterUrl, {
                     method: "POST",
                     mode: "no-cors", 
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(currentScannedBook)
                 });
         
-                showStatus(`Successfully synced configuration: "${currentScannedBook.title}"`, "success");
+                showStatus("🎉 Successfully saved to spreadsheet!", "success");
                 appendSessionHistoryLog(currentScannedBook);
                 
-                // --- THE FIX IS HERE ---
-                // Cleanly completely reset our global scanner tracking state 
-                // so the system is unlocked and ready to scan your next book immediately!
-                currentScannedBook = null;
-                resetScannerUIState(); 
+                // --- DEEP RESET FOR NEXT BOOK ---
+                currentScannedBook = null; // Clear out the object so it's ready for a fresh one
                 
+                // Clear out the input fields so old data doesn't stick around
+                if (document.getElementById("input-borrower")) document.getElementById("input-borrower").value = "";
+                if (document.getElementById("input-location")) document.getElementById("input-location").value = "";
+                
+                // Un-highlight selected tag chips
+                document.querySelectorAll(".tag-chip").forEach(chip => chip.classList.remove("bg-indigo-600", "text-white"));
+        
+                // Clear the visual form layout area
+                if (bookResult) bookResult.innerHTML = ""; 
+        
+                // Turn the camera scanner back on natively
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.resume();
+                }
+        
             } catch (err) {
-                showStatus(`Spreadsheet sync transmission dropped: ${err.message}`, "error");
+                showStatus(`Transmission failed: ${err.message}`, "error");
+                // Resume scanning even if it fails so you aren't locked out
+                if (html5QrcodeScanner) html5QrcodeScanner.resume();
             }
         }
-
+        
         function appendSessionHistoryLog(book) {
             historySection.classList.remove("hidden");
             const copyDisplayNum = book.uniqueId.split("-")[1] || "1";

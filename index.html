@@ -589,7 +589,7 @@
                 return (
                     (b.title && b.title.toLowerCase().includes(query)) ||
                     (b.authors && b.authors.toLowerCase().includes(query)) ||
-                    (b.isbn && b.isbn.includes(query)) ||
+                    (b.isbn && String(b.isbn).includes(query)) ||
                     (b.categories && b.categories.toLowerCase().includes(query)) ||
                     (b.genre && b.genre.toLowerCase().includes(query))
                 );
@@ -879,7 +879,7 @@
         function manageBookByIsbn(isbn, uniqueId = null) {
             isbnInput.value = isbn;
             pendingSelectUniqueId = uniqueId;
-            const cached = globalCatalogCache.find(b => b.isbn === isbn) || null;
+            const cached = globalCatalogCache.find(b => String(b.isbn) === String(isbn)) || null;
             checkExistingAndFetchMetadata(isbn, cached);
         }
 
@@ -893,7 +893,7 @@
             
             activeCopiesData = [];
             if (cachedBookData) {
-                activeCopiesData = globalCatalogCache.filter(b => b.isbn === cleanIsbn);
+                activeCopiesData = globalCatalogCache.filter(b => String(b.isbn) === cleanIsbn);
             } else if (cleanIsbn) {
                 try {
                     const lookupResponse = await fetch(`${GOOGLE_SCRIPT_URL}?isbn=${cleanIsbn}&token=${encodeURIComponent(SHARED_SECRET)}`); 

@@ -718,18 +718,27 @@
             if (currentScannedBook) refreshActiveFormMemberDropdown();
         }
 
-        function refreshActiveFormMemberDropdown() {
+        function refreshActiveFormMemberDropdown(selectedReader = "") {
             const d = document.getElementById("input-reader");
             if (!d) return;
-            const p = d.value;
+            
+            // Ensure all current household members are included
+            let options = [...householdMembers];
+            if (selectedReader && !options.includes(selectedReader)) {
+                options.push(selectedReader);
+            }
+        
             d.innerHTML = "";
-            householdMembers.forEach(m => {
+            options.forEach(m => {
                 const o = document.createElement("option");
                 o.value = m;
                 o.innerText = m;
                 d.appendChild(o);
             });
-            if (householdMembers.includes(p)) d.value = p;
+        
+            if (selectedReader) {
+                d.value = selectedReader;
+            }
         }
 
         // Location List Manager
@@ -970,6 +979,7 @@
             currentScannedBook.dueDate = c.dueDate || "";
             currentScannedBook.reader = c.reader || "";
             currentScannedBook.status = c.status || "Available";
+            
             document.getElementById("copy-badge-indicator").innerText = `Modifying: Copy ${i + 1} (${selectedUniqueId})`; 
             
             const bl = document.getElementById("copy-buttons-list").children; 
@@ -977,14 +987,17 @@
                 if (idx === i) b.className = "px-3 py-1.5 text-xs font-bold rounded-lg border bg-indigo-600 text-white shadow-xs cursor-pointer"; 
                 else if (idx < activeCopiesData.length) b.className = "px-3 py-1.5 text-xs font-semibold rounded-lg border bg-white text-gray-700 shadow-xs cursor-pointer"; 
             }); 
+        
             if (userLocations.includes(c.location)) document.getElementById("input-location").value = c.location; 
             document.getElementById("input-status").value = c.status || "Available"; 
             document.getElementById("input-borrower").value = c.borrower || "";
             document.getElementById("input-duedate").value = c.dueDate || "";
-            if (householdMembers.includes(c.reader)) document.getElementById("input-reader").value = c.reader;
             
+            // Ensure the reader dropdown includes and selects the saved reader
+            refreshActiveFormMemberDropdown(c.reader || "");
+        
             toggleStatusDependentFields();
-
+        
             if (c.tags) { 
                 c.tags.split(", ").forEach(ts => { 
                     document.querySelectorAll(".tag-chip").forEach(ch => { 
@@ -996,7 +1009,7 @@
                 }); 
             } 
         }
-
+        
         function createNewCopyInstanceProfile() { 
             const ni = activeCopiesData.length + 1; 
             selectedUniqueId = `${currentScannedBook.isbn}-ni`; 

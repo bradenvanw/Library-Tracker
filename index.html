@@ -656,7 +656,6 @@
         }
 
         async function submitDataToGoogleSheets() { 
-            // PREVENT BLANK BOOK ROWS: Guard clause to ensure we only save active book entries
             if (!currentScannedBook || !currentScannedBook.title) {
                 console.warn("No valid book loaded to save.");
                 return;
@@ -687,12 +686,16 @@
                 currentScannedBook.dateBorrowed = ""; 
             }
             
-            const selectedChips = Array.from(document.querySelectorAll(".tag-chip.bg-indigo-600")); 
-            currentScannedBook.tags = selectedChips.map(c => c.getAttribute("data-val")).join(", "); 
+            // --- TAG SELECTION FIX ---
+            // Grab all active tag chips regardless of exact color classes
+            const activeTagButtons = document.querySelectorAll("#tag-chips-container button.bg-indigo-600"); 
+            const selectedTagsArray = Array.from(activeTagButtons).map(c => c.getAttribute("data-val")).filter(Boolean);
+            currentScannedBook.tags = selectedTagsArray.join(", "); 
             
             const savedBookInstance = { 
-                action: "saveBook", // Explicitly tag book saves
+                action: "saveBook",
                 ...currentScannedBook,
+                tags: currentScannedBook.tags, // Explicitly pass tags string
                 coverImage: currentScannedBook.coverImage || currentScannedBook.thumbnail || ""
             }; 
         
@@ -1100,6 +1103,7 @@
             currentScannedBook.reader = c.reader || "";
             currentScannedBook.coverImage = c.coverImage || c.thumbnail || "";
             currentScannedBook.status = c.status || "Available";
+            currentScannedBook.tags = c.tags || "";
             
             document.getElementById("copy-badge-indicator").innerText = `Modifying: Copy ${i + 1} (${selectedUniqueId})`; 
         
@@ -1108,6 +1112,18 @@
             document.getElementById("input-borrower").value = c.borrower || "";
             document.getElementById("input-duedate").value = c.dueDate || "";
             
+            // Auto-select existing tags on UI chips
+            if (c.tags) {
+                const existingTags = c.tags.split(",").map(t => t.trim());
+                document.querySelectorAll("#tag-chips-container button").forEach(btn => {
+                    const val = btn.getAttribute("data-val");
+                    if (existingTags.includes(val)) {
+                        btn.className = "tag-chip bg-indigo-600 text-white border border-indigo-600 px-3 py-1.5 text-xs font-medium rounded-xl cursor-pointer";
+                        btn.innerText = `🏷️ ${val}`;
+                    }
+                });
+            }
+        
             refreshActiveFormMemberDropdown(c.reader || "");
             toggleStatusDependentFields();
         }

@@ -815,6 +815,57 @@
                 renderIntegratedLayout(); 
             } 
         }
+
+        async function deleteBookRecord() {
+            if (!currentScannedBook) return;
+
+            const targetId = selectedUniqueId || currentScannedBook.uniqueId || currentScannedBook.isbn;
+            const confirmDelete = confirm(`Are you sure you want to delete "${currentScannedBook.title}" (ID: ${targetId})? This action cannot be undone.`);
+            if (!confirmDelete) return;
+
+            const deleteBtn = document.getElementById("delete-book-btn");
+            if (deleteBtn) {
+                deleteBtn.disabled = true;
+                deleteBtn.innerText = "⏳ Deleting...";
+            }
+
+            showStatus("Deleting record...", "info");
+
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({
+                        action: "deleteBook",
+                        uniqueId: selectedUniqueId,
+                        isbn: currentScannedBook.isbn
+                    })
+                });
+
+                const resData = await response.json();
+
+                if (resData.status === "success") {
+                    showStatus(`Successfully deleted record.`, "success");
+                    bookResult.innerHTML = "";
+                    currentScannedBook = null;
+                    isbnInput.value = "";
+                    await fetchAllBooksFromGoogleSheet();
+                    switchAppMode('search');
+                } else {
+                    showStatus(`Delete failed: ${resData.message}`, "error");
+                    if (deleteBtn) {
+                        deleteBtn.disabled = false;
+                        deleteBtn.innerText = "🗑️ Delete";
+                    }
+                }
+            } catch (err) {
+                showStatus(`Error deleting book: ${err.message}`, "error");
+                if (deleteBtn) {
+                    deleteBtn.disabled = false;
+                    deleteBtn.innerText = "🗑️ Delete";
+                }
+            }
+        }
         
         async function checkExistingAndFetchMetadata(isbn, cachedBookData = null) { 
             clearStatus(); 
@@ -1394,9 +1445,15 @@
                     
                     <div class="space-y-1"><label class="block text-xs font-bold text-gray-600 uppercase tracking-wider">Storage Shelf Location Slot</label><select id="input-location" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs font-medium"></select></div>
                     <div class="space-y-1"><label class="block text-xs font-bold text-gray-600 uppercase tracking-wider">Collection Tracking Badges</label><div id="tag-chips-container" class="flex flex-wrap gap-2 pt-1"></div></div>
-                    <button id="submit-to-sheet-btn" onclick="submitDataToGoogleSheets()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm shadow-sm cursor-pointer mt-2 transition-all flex justify-center items-center gap-2">
-                        <span>Confirm & Sync Data Records</span>
-                    </button>
+                    
+                    <div class="flex gap-2 pt-2">
+                        <button id="submit-to-sheet-btn" onclick="submitDataToGoogleSheets()" class="flex-grow bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm shadow-sm cursor-pointer transition-all flex justify-center items-center gap-2">
+                            <span>Confirm & Sync Data Records</span>
+                        </button>
+                        <button id="delete-book-btn" onclick="deleteBookRecord()" class="bg-red-50 hover:bg-red-100 text-red-600 font-semibold px-4 py-3 rounded-xl text-sm transition-all cursor-pointer border border-red-200 flex items-center justify-center gap-1 shrink-0">
+                            <span>🗑️ Delete</span>
+                        </button>
+                    </div>
                 </div>
             `; 
             setupFormInteractions(); 

@@ -405,6 +405,29 @@
             }
         }
 
+        // Calls the backend to rename a tag or location across every book that has it.
+        // type: "tag" | "location". Returns true on success, false otherwise.
+        async function cascadeRenameOnServer(type, oldValue, newValue) {
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({
+                        action: "renameCategoryValue",
+                        token: SHARED_SECRET,
+                        type: type,
+                        oldValue: oldValue,
+                        newValue: newValue
+                    })
+                });
+                const resData = await response.json();
+                return resData.status === "success";
+            } catch (e) {
+                console.error("Error cascading rename to backend:", e);
+                return false;
+            }
+        }
+
         async function loadSyncedSettingsFromServer() {
             try {
                 const cacheBuster = `&_cb=${new Date().getTime()}`;
@@ -1305,7 +1328,8 @@
                         <input type="checkbox" ${isPinned ? 'checked' : ''} onchange="toggleDashboardFilterVisibility('${l.replace(/'/g, "\\'")}', this.checked)" class="accent-indigo-600 rounded">
                         <span>📍 ${l}</span>
                     </label>
-                    <button onclick="deleteCustomUserLocation(${i})" class="text-gray-400 hover:text-red-500 font-bold px-1 ml-2 cursor-pointer">&times;</button>
+                    <button onclick="renameCustomUserLocation(${i})" title="Rename" class="text-gray-400 hover:text-indigo-600 font-bold px-1 cursor-pointer">✏️</button>
+                    <button onclick="deleteCustomUserLocation(${i})" class="text-gray-400 hover:text-red-500 font-bold px-1 ml-1 cursor-pointer">&times;</button>
                 `; 
                 locationLibraryList.appendChild(row); 
             }); 
@@ -1331,6 +1355,34 @@
             syncSettingsToServer();
             renderLocationLibrarySettings(); 
             if (currentScannedBook) refreshActiveFormLocationDropdown(); 
+        }
+
+        async function renameCustomUserLocation(i) {
+            const oldName = userLocations[i];
+            const newName = prompt("Rename location:", oldName);
+            if (newName === null) return;
+            const trimmed = newName.trim();
+            if (!trimmed || trimmed === oldName) return;
+            if (userLocations.includes(trimmed)) {
+                alert(`A location named "${trimmed}" already exists.`);
+                return;
+            }
+
+            userLocations[i] = trimmed;
+            const filterIdx = visibleDashboardFilters.indexOf(oldName);
+            if (filterIdx > -1) visibleDashboardFilters[filterIdx] = trimmed;
+            if (activeSelectedCategoryFilter === oldName) activeSelectedCategoryFilter = trimmed;
+
+            syncSettingsToServer();
+            renderLocationLibrarySettings();
+            if (currentScannedBook) refreshActiveFormLocationDropdown();
+
+            const success = await cascadeRenameOnServer("location", oldName, trimmed);
+            if (success) {
+                await fetchAllBooksFromGoogleSheet();
+            } else {
+                alert(`Renamed in settings, but couldn't update existing books on the server. Try again, or rename back and retry.`);
+            }
         }
         
         function refreshActiveFormLocationDropdown() { 
@@ -1358,7 +1410,8 @@
                         <input type="checkbox" ${isPinned ? 'checked' : ''} onchange="toggleDashboardFilterVisibility('${t.replace(/'/g, "\\'")}', this.checked)" class="accent-indigo-600 rounded">
                         <span>🏷️ ${t}</span>
                     </label>
-                    <button onclick="deleteCustomUserTag(${i})" class="text-gray-400 hover:text-red-500 font-bold px-1 ml-2 cursor-pointer">&times;</button>
+                    <button onclick="renameCustomUserTag(${i})" title="Rename" class="text-gray-400 hover:text-indigo-600 font-bold px-1 cursor-pointer">✏️</button>
+                    <button onclick="deleteCustomUserTag(${i})" class="text-gray-400 hover:text-red-500 font-bold px-1 ml-1 cursor-pointer">&times;</button>
                 `; 
                 tagLibraryList.appendChild(row); 
             }); 
@@ -1384,6 +1437,34 @@
             syncSettingsToServer();
             renderTagLibrarySettings(); 
             if (currentScannedBook) refreshActiveFormTagChips(); 
+        }
+
+        async function renameCustomUserTag(i) {
+            const oldName = userTags[i];
+            const newName = prompt("Rename tag:", oldName);
+            if (newName === null) return;
+            const trimmed = newName.trim();
+            if (!trimmed || trimmed === oldName) return;
+            if (userTags.includes(trimmed)) {
+                alert(`A tag named "${trimmed}" already exists.`);
+                return;
+            }
+
+            userTags[i] = trimmed;
+            const filterIdx = visibleDashboardFilters.indexOf(oldName);
+            if (filterIdx > -1) visibleDashboardFilters[filterIdx] = trimmed;
+            if (activeSelectedCategoryFilter === oldName) activeSelectedCategoryFilter = trimmed;
+
+            syncSettingsToServer();
+            renderTagLibrarySettings();
+            if (currentScannedBook) refreshActiveFormTagChips();
+
+            const success = await cascadeRenameOnServer("tag", oldName, trimmed);
+            if (success) {
+                await fetchAllBooksFromGoogleSheet();
+            } else {
+                alert(`Renamed in settings, but couldn't update existing books on the server. Try again, or rename back and retry.`);
+            }
         }
         
         function refreshActiveFormTagChips() { 
